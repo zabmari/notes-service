@@ -9,6 +9,9 @@ import com.marika.notesservice.dto.item.ItemUpdateRequest;
 import com.marika.notesservice.dto.item.ItemUpdateResponse;
 import com.marika.notesservice.dto.item.ShareRequest;
 import com.marika.notesservice.dto.item.ShareResponse;
+import com.marika.notesservice.exception.ResourceNotFoundException;
+import com.marika.notesservice.exception.SelfShareException;
+import com.marika.notesservice.exception.VersionConflictException;
 import com.marika.notesservice.mapper.ItemMapper;
 import com.marika.notesservice.model.Item;
 import com.marika.notesservice.model.ItemPermission;
@@ -26,6 +29,8 @@ import org.hibernate.envers.AuditReader;
 import org.hibernate.envers.AuditReaderFactory;
 import org.hibernate.envers.RevisionType;
 import org.hibernate.envers.query.AuditEntity;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -61,12 +66,12 @@ public class ItemServiceImpl implements ItemService{
                 .getName();
 
         return userRepository.findByLogin(login)
-                .orElseThrow( ()-> new ResponseStatusException(NOT_FOUND, "User not found"));
+                .orElseThrow( ()-> new ResourceNotFoundException("User not found"));
     }
 
     private Item loadItem(UUID id) {
         return itemRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Item not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Item not found"));
     }
 
     private ItemPermission getPermissionOrThrow(Item item, User user) {
@@ -77,7 +82,7 @@ public class ItemServiceImpl implements ItemService{
 
     private void asserNotDeleted(Item item) {
         if (item.getDeleted()) {
-            throw new ResponseStatusException(NOT_FOUND, "Item not found");
+            throw new ResourceNotFoundException("Item not found");
         }
     }
 
@@ -89,7 +94,7 @@ public class ItemServiceImpl implements ItemService{
 
     private User loadUser(UUID userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
 
@@ -100,14 +105,12 @@ public class ItemServiceImpl implements ItemService{
         Item item = itemMapper.toEntity(createItemRequest, currentUser);
 
         item.setOwner(currentUser);
-        item.setVersion(0);
         item.setDeleted(false);
-        item.setCreatedAt(Instant.now());
-        item.setUpdatedAt(Instant.now());
 
         item = itemRepository.save(item);
+        entityManager.flush();
         ItemPermission itemPermission = new ItemPermission();
-        itemPermission.setItem(item);
+        itemPermission.setItem(itemRepository.getReferenceById(item.getId()));
         itemPermission.setUser(currentUser);
         itemPermission.setRole(PermissionRole.OWNER);
 
@@ -145,7 +148,7 @@ public class ItemServiceImpl implements ItemService{
         }
 
         if (!item.getVersion().equals(updateItemRequest.version())) {
-            throw new ResponseStatusException(CONFLICT, "Version mismatch. Current version: " + item.getVersion());
+            throw new VersionConflictException(item.getVersion());
         }
 
         if (updateItemRequest.title() != null) {
@@ -185,14 +188,8 @@ public class ItemServiceImpl implements ItemService{
     @Transactional(readOnly = true)
     public List<ItemHistoryResponse> getItemHistory(UUID id) {
         User currentUser = getCurrentUser();
-
         Item item = loadItem(id);
-
-        asserNotDeleted(item);
-
         getPermissionOrThrow(item, currentUser);
-
-
         AuditReader auditReader = AuditReaderFactory.get(entityManager);
 
         List<Object[]> revisions = auditReader.createQuery()
@@ -219,37 +216,41 @@ public class ItemServiceImpl implements ItemService{
     }
 
     @Transactional
-    public ShareResponse shareItem(UUID id, ShareRequest shareRequest) {
-        User currenUser = getCurrentUser();
+    public ResponseEntity<ShareResponse> shareItem(UUID id, ShareRequest shareRequest) {
+
+        User currentUser = getCurrentUser();
 
         Item item = loadItem(id);
         asserNotDeleted(item);
 
-        ItemPermission itemPermission = getPermissionOrThrow(item, currenUser);
+        ItemPermission itemPermission = getPermissionOrThrow(item, currentUser);
         assertOwner(itemPermission);
 
         User targetUser = loadUser(shareRequest.userId());
 
-        if (targetUser.getId().equals(currenUser.getId())) {
-            throw new ResponseStatusException(BAD_REQUEST, "Cannot grant access to yourself");
+        if (targetUser.getId().equals(currentUser.getId())) {
+            throw new SelfShareException("Cannot grant access to yourself");
         }
 
         PermissionRole role;
         try {
             role = PermissionRole.valueOf(shareRequest.role());
         } catch (Exception e) {
-            throw new ResponseStatusException(BAD_REQUEST, "Invalid role");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid role");
         }
 
         if (role == PermissionRole.OWNER) {
-            throw new ResponseStatusException(BAD_REQUEST, "Cannot assign OWNER role");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot assign OWNER role");
         }
 
         ItemPermission targetPermission = itemPermissionRepository
                 .findByItemAndUser(item, targetUser)
                 .orElse(null);
 
-        if(targetPermission == null) {
+        boolean isNew = false;
+
+        if (targetPermission == null) {
+            isNew = true;
             targetPermission = new ItemPermission();
             targetPermission.setItem(item);
             targetPermission.setUser(targetUser);
@@ -258,12 +259,16 @@ public class ItemServiceImpl implements ItemService{
         targetPermission.setRole(role);
         itemPermissionRepository.save(targetPermission);
 
-        return new ShareResponse(
+        ShareResponse shareResponse = new ShareResponse(
                 item.getId(),
                 targetUser.getId(),
                 role.name(),
                 Instant.now()
         );
+
+        return isNew
+                ? ResponseEntity.status(201).body(shareResponse)
+                : ResponseEntity.ok(shareResponse);
     }
 
     @Transactional
@@ -280,7 +285,7 @@ public class ItemServiceImpl implements ItemService{
 
         ItemPermission targetPermission = itemPermissionRepository
                 .findByItemAndUser(item, targetUser)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "User has no access to this item"));
+                .orElseThrow(() -> new ResourceNotFoundException("User has no access to this item"));
 
         itemPermissionRepository.delete(targetPermission);
     }

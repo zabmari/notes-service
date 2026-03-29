@@ -10,6 +10,7 @@ import com.marika.notesservice.dto.item.ItemUpdateResponse;
 import com.marika.notesservice.dto.item.ShareRequest;
 import com.marika.notesservice.dto.item.ShareResponse;
 import com.marika.notesservice.model.Item;
+import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 import java.util.UUID;
@@ -26,7 +27,7 @@ public interface ItemService {
 
     List<ItemHistoryResponse> getItemHistory(UUID id);
 
-    ShareResponse shareItem(UUID id, ShareRequest shareRequest);
+    ResponseEntity<ShareResponse> shareItem(UUID id, ShareRequest shareRequest);
 
     void revokeShare(UUID itemId, UUID targetUserId);
 
