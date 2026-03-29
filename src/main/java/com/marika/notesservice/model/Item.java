@@ -17,6 +17,7 @@ import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.envers.Audited;
+import org.hibernate.envers.RelationTargetAuditMode;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -27,16 +28,16 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor
+@AllArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 @Builder
 public class Item {
     @Id
     @GeneratedValue
     private UUID id;
 
-
     @ManyToOne(optional = false)
     @JoinColumn(name = "owner_id")
+    @Audited(targetAuditMode = RelationTargetAuditMode.NOT_AUDITED)
     private User owner;
 
     @Column(nullable = false, length = 255)
@@ -49,6 +50,7 @@ public class Item {
     @Column(nullable = false)
     private Integer version;
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean deleted = false;
 
