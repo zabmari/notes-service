@@ -1,6 +1,18 @@
 package com.marika.notesservice.dto.item;
 
-public record ItemUpdateRequest(String title,
-                                String content,
-                                Integer version) {
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
+
+public record ItemUpdateRequest(
+        @Size(min = 1, max = 200)
+        String title,
+
+        @Size(max = 10000)
+        String content,
+
+        @NotNull
+        @PositiveOrZero
+        Integer version) {
 }
