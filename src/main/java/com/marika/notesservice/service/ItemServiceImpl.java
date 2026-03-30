@@ -43,10 +43,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-import static org.springframework.http.HttpStatus.BAD_REQUEST;
-import static org.springframework.http.HttpStatus.CONFLICT;
-import static org.springframework.http.HttpStatus.NOT_FOUND;
-
 
 @RequiredArgsConstructor
 @Service
@@ -158,7 +154,6 @@ public class ItemServiceImpl implements ItemService{
             item.setContent(updateItemRequest.content());
         }
 
-        item.setVersion(item.getVersion() + 1);
         item.setUpdatedAt(Instant.now());
 
         itemRepository.save(item);

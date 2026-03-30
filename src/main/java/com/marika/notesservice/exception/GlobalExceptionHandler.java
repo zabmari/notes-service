@@ -1,6 +1,7 @@
 package com.marika.notesservice.exception;
 
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.OptimisticLockException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -87,5 +88,12 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Map<String, Object> handleSelfShare(SelfShareException ex) {
         return Map.of("message", ex.getMessage());
+    }
+
+    @ExceptionHandler(OptimisticLockException.class)
+    public ResponseEntity<String> handleOptimisticLockException(OptimisticLockException ex) {
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body("Version conflict: the item was modified by another user");
     }
 }
