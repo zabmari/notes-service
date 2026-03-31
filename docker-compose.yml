@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: notes-mysql
+    environment:
+      MYSQL_DATABASE: notes
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: notes
+      MYSQL_PASSWORD: notes
+    ports:
+      - "3308:3306"
+    command: ["--default-authentication-plugin=mysql_native_password"]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: notes-app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/notes
+      SPRING_DATASOURCE_USERNAME: notes
+      SPRING_DATASOURCE_PASSWORD: notes
+    ports:
+      - "8081:8080"
