@@ -4,52 +4,44 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.http.MediaType;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
-@AutoConfigureMockMvc(addFilters = false)
-@Testcontainers
-public class RateLimitingIntegrationTest {
-
-    @Container
-    static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.0")
-            .withDatabaseName("notes")
-            .withUsername("root")
-            .withPassword("root");
-
-    @DynamicPropertySource
-    static void configure(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", mysql::getJdbcUrl);
-        registry.add("spring.datasource.username", mysql::getUsername);
-        registry.add("spring.datasource.password", mysql::getPassword);
-    }
+@AutoConfigureMockMvc
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+public class RateLimitingIntegrationTest extends BaseIntegrationTest {
 
     @Autowired
     MockMvc mockMvc;
 
     @Test
-    void rateLimitingBlocksAfterFiveRequests() throws Exception {
+    void rateLimitingBlocksAfterFiveLoginAttempts() throws Exception {
+        String loginJson = """
+                {
+                    "login": "test-user",
+                    "password": "wrong-password"
+                }
+                """;
 
+        // Wykonujemy 5 prób - powinny zwrócić 401 Unauthorized
         for (int i = 0; i < 5; i++) {
-            mockMvc.perform(get("/items"))
-                    .andExpect(status().isOk());
+            mockMvc.perform(post("/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(loginJson))
+                    .andExpect(status().isUnauthorized());
         }
 
-        MvcResult result = mockMvc.perform(get("/items"))
-                .andExpect(status().isTooManyRequests())
-                .andReturn();
-
-        String retryAfter = result.getResponse().getHeader("Retry-After");
-        assertNotNull(retryAfter);
+        // 6. próba powinna zostać zablokowana przez filtr Rate Limitera
+        mockMvc.perform(post("/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginJson))
+                .andExpect(status().isTooManyRequests()) // Status 429
+                .andExpect(header().exists("Retry-After"));
     }
 }
