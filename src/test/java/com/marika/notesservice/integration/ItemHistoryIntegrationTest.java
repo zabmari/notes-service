@@ -23,7 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest
-@AutoConfigureMockMvc(addFilters = false) // KLUCZ: Wyłączamy filtry (JWT i RateLimit)
+@AutoConfigureMockMvc(addFilters = false)
 public class ItemHistoryIntegrationTest extends BaseIntegrationTest {
 
     @Autowired

@@ -29,7 +29,6 @@ public class RateLimitingIntegrationTest extends BaseIntegrationTest {
                 }
                 """;
 
-        // Wykonujemy 5 prób - powinny zwrócić 401 Unauthorized
         for (int i = 0; i < 5; i++) {
             mockMvc.perform(post("/login")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -37,11 +36,10 @@ public class RateLimitingIntegrationTest extends BaseIntegrationTest {
                     .andExpect(status().isUnauthorized());
         }
 
-        // 6. próba powinna zostać zablokowana przez filtr Rate Limitera
         mockMvc.perform(post("/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(loginJson))
-                .andExpect(status().isTooManyRequests()) // Status 429
+                .andExpect(status().isTooManyRequests())
                 .andExpect(header().exists("Retry-After"));
     }
 }
