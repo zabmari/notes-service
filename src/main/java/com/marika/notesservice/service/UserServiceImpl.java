@@ -11,20 +11,14 @@ import com.marika.notesservice.mapper.UserMapper;
 import com.marika.notesservice.model.User;
 import com.marika.notesservice.repository.UserRepository;
 import com.marika.notesservice.security.JwtService;
+import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
-
-import java.time.Instant;
-
-import static org.springframework.http.HttpStatus.BAD_REQUEST;
-import static org.springframework.http.HttpStatus.CONFLICT;
-import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
 @RequiredArgsConstructor
 @Service
-public class UserServiceImpl implements UserService{
+public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
@@ -32,7 +26,8 @@ public class UserServiceImpl implements UserService{
 
     @Override
     public RegisterResponse register(RegisterRequest registerRequest) {
-        if (registerRequest.login() == null || registerRequest.login().length() < 3 || registerRequest.login().length() > 64) {
+        if (registerRequest.login() == null || registerRequest.login().length() < 3
+                || registerRequest.login().length() > 64) {
             throw new InvalidRegisterDataException("Login must be between 3 and 64 characters");
         }
 

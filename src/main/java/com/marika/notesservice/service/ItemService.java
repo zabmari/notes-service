@@ -1,6 +1,5 @@
 package com.marika.notesservice.service;
 
-
 import com.marika.notesservice.dto.item.CreateItemRequest;
 import com.marika.notesservice.dto.item.ItemHistoryResponse;
 import com.marika.notesservice.dto.item.ItemListResponse;
@@ -9,11 +8,9 @@ import com.marika.notesservice.dto.item.ItemUpdateRequest;
 import com.marika.notesservice.dto.item.ItemUpdateResponse;
 import com.marika.notesservice.dto.item.ShareRequest;
 import com.marika.notesservice.dto.item.ShareResponse;
-import com.marika.notesservice.model.Item;
-import org.springframework.http.ResponseEntity;
-
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.ResponseEntity;
 
 public interface ItemService {
 

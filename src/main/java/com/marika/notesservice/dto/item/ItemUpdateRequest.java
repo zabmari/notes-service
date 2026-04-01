@@ -1,7 +1,6 @@
 package com.marika.notesservice.dto.item;
 
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
@@ -16,3 +15,4 @@ public record ItemUpdateRequest(
         @PositiveOrZero
         Integer version) {
 }
+

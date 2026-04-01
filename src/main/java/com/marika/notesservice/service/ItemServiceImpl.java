@@ -21,9 +21,11 @@ import com.marika.notesservice.repository.ItemPermissionRepository;
 import com.marika.notesservice.repository.ItemRepository;
 import com.marika.notesservice.repository.UserRepository;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityNotFoundException;
-
 import jakarta.persistence.PersistenceContext;
+import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.envers.AuditReader;
 import org.hibernate.envers.AuditReaderFactory;
@@ -37,24 +39,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-
-import java.time.Instant;
-import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
-
-
 @RequiredArgsConstructor
 @Service
-public class ItemServiceImpl implements ItemService{
+public class ItemServiceImpl implements ItemService {
 
-    @PersistenceContext
-    private EntityManager entityManager;
     private final ItemRepository itemRepository;
     private final UserRepository userRepository;
     private final ItemMapper itemMapper;
     private final ItemPermissionRepository itemPermissionRepository;
-
+    @PersistenceContext
+    private EntityManager entityManager;
 
     private User getCurrentUser() {
         String login = SecurityContextHolder.getContext()
@@ -62,7 +56,7 @@ public class ItemServiceImpl implements ItemService{
                 .getName();
 
         return userRepository.findByLogin(login)
-                .orElseThrow( ()-> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
     private Item loadItem(UUID id) {
@@ -73,7 +67,7 @@ public class ItemServiceImpl implements ItemService{
     private ItemPermission getPermissionOrThrow(Item item, User user) {
         return itemPermissionRepository
                 .findByItemAndUser(item, user)
-                .orElseThrow(()-> new AccessDeniedException("No permission"));
+                .orElseThrow(() -> new AccessDeniedException("No permission"));
     }
 
     private void asserNotDeleted(Item item) {
@@ -92,8 +86,7 @@ public class ItemServiceImpl implements ItemService{
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
-
-
+    
     @Transactional
     public ItemResponse createItem(CreateItemRequest createItemRequest) {
         User currentUser = getCurrentUser();
@@ -280,7 +273,8 @@ public class ItemServiceImpl implements ItemService{
 
         ItemPermission targetPermission = itemPermissionRepository
                 .findByItemAndUser(item, targetUser)
-                .orElseThrow(() -> new ResourceNotFoundException("User has no access to this item"));
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("User has no access to this item"));
 
         itemPermissionRepository.delete(targetPermission);
     }

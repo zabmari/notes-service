@@ -9,8 +9,9 @@ import com.marika.notesservice.dto.item.ItemUpdateResponse;
 import com.marika.notesservice.dto.item.ShareRequest;
 import com.marika.notesservice.dto.item.ShareResponse;
 import com.marika.notesservice.service.ItemService;
-
 import jakarta.validation.Valid;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,9 +24,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
@@ -47,7 +45,8 @@ public class ItemController {
 
     @PatchMapping("/{id}")
     @ResponseStatus(HttpStatus.OK)
-    public ItemUpdateResponse update(@PathVariable UUID id, @Valid @RequestBody ItemUpdateRequest request) {
+    public ItemUpdateResponse update(@PathVariable UUID id,
+                                     @Valid @RequestBody ItemUpdateRequest request) {
         return itemService.updateItem(id, request);
     }
 
@@ -65,7 +64,8 @@ public class ItemController {
 
     @PostMapping("/{id}/share")
     @ResponseStatus(HttpStatus.OK)
-    public ResponseEntity<ShareResponse> share(@PathVariable UUID id, @Valid @RequestBody ShareRequest request) {
+    public ResponseEntity<ShareResponse> share(@PathVariable UUID id,
+                                               @Valid @RequestBody ShareRequest request) {
         return itemService.shareItem(id, request);
     }
 
