@@ -1,6 +1,15 @@
 package com.marika.notesservice.integration;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import com.jayway.jsonpath.JsonPath;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,16 +22,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false) // KLUCZ: Wyłączamy filtry (JWT i RateLimit)
 public class ItemHistoryIntegrationTest extends BaseIntegrationTest {
@@ -33,7 +32,8 @@ public class ItemHistoryIntegrationTest extends BaseIntegrationTest {
     @BeforeEach
     void setUpSecurity() {
         UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                "test-user", null, Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+                "test-user", null,
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
         SecurityContextHolder.getContext().setAuthentication(auth);
     }
 
@@ -74,7 +74,7 @@ public class ItemHistoryIntegrationTest extends BaseIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(update2))
                 .andExpect(status().isOk());
-        
+
         MvcResult historyResult = mockMvc.perform(get("/items/" + itemID + "/history"))
                 .andExpect(status().isOk())
                 .andReturn();
