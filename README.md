@@ -7,8 +7,8 @@ track history, and enforce resource-level access control.
 
 * **Java 21 & Virtual Threads**: Optimized for high concurrency using `spring.threads.virtual.enabled=true`. This allows
   the application to handle a large number of concurrent requests with minimal overhead.
-* **Resource-Level Authorization (ABAC)**: Implemented custom security checks to verify if a logged-in user is an *
-  *OWNER**, **EDITOR**, or **VIEWER** for a specific note ID before granting access.
+* **Resource-Level Authorization (ABAC)**: Implemented custom security checks to verify if a logged-in user is an
+* **OWNER**, **EDITOR**, or **VIEWER** for a specific note ID before granting access.
 * **Soft Delete & Data Integrity**: Deletions are logical (deleted = true). The application uses Hibernate
   @SQLRestriction
   to automatically filter out deleted items from all queries and history views.
@@ -90,15 +90,36 @@ Key settings in `application.properties`:
 
 ---
 
-## 🧪 Testing Strategy
+## Testing Strategy
 
-Run the test suite using the command:
+The project follows a comprehensive testing strategy, combining fast unit tests with robust integration tests in a
+containerized environment.
 
-    mvn test
+### Unit Tests (JUnit 5 & Mockito)
 
-* **Unit Tests**: Focused on `SecurityService` (permission logic) and business rules using Mockito.
-* **Integration Tests**: Validates the full Envers flow (create -> edit -> check history) and Bucket4j IP-blocking using
-  a real MySQL container via **Testcontainers**.
+* **Business Logic:** Full coverage of `ItemService` and `UserService` to ensure data integrity and correct rule
+  enforcement.
+* **Security Service:** Validation of complex permission logic (Owner vs. Viewer) and access control.
+* **Authentication Flow:** Testing registration and login processes, including BCrypt password encoding and JWT token
+  generation.
+* **DTO Mapping:** Ensuring MapStruct correctly handles data transformation, including null-safe relational mapping.
+
+### Integration Tests (Testcontainers & MySQL)
+
+* **Audit Logging (Hibernate Envers):** Validates the full audit trail (Create -> Edit -> History Check) ensuring that
+  every change is captured with the correct user metadata.
+* **Concurrency Control:** Verifying **Optimistic Locking** (`@Version`) mechanism to prevent "Lost Update" scenarios
+  during simultaneous note edits.
+* **Rate Limiting:** Real-world validation of **Bucket4j** IP-blocking and protection against Brute-Force/DDoS attacks.
+* **Soft Delete Integrity:** Ensuring that deleted notes (and their associated permissions) are correctly filtered out
+  from all API responses and repository queries.
+* **Database Consistency:** Testing the interaction with a real MySQL instance to catch any SQL-specific issues.
+
+### How to Run Tests
+
+To run the full test suite, execute the following command:
+
+mvn clean verify
 
 ---
 
