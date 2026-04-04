@@ -40,6 +40,10 @@ public class RateLimitingIntegrationTest extends BaseIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(loginJson))
                 .andExpect(status().isTooManyRequests())
-                .andExpect(header().exists("Retry-After"));
+                .andExpect(header().exists("Retry-After"))
+                .andExpect(result -> {
+                    String headerValue = result.getResponse().getHeader("Retry-After");
+                    org.assertj.core.api.Assertions.assertThat(headerValue).containsPattern("\\d");
+                });
     }
 }

@@ -2,12 +2,17 @@ package com.marika.notesservice.service;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.marika.notesservice.dto.item.ItemUpdateRequest;
 import com.marika.notesservice.dto.item.ShareRequest;
+import com.marika.notesservice.dto.item.ShareResponse;
 import com.marika.notesservice.exception.ResourceNotFoundException;
 import com.marika.notesservice.exception.SelfShareException;
 import com.marika.notesservice.exception.VersionConflictException;
@@ -31,7 +36,6 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 public class ItemServiceImplTest {
@@ -84,7 +88,8 @@ public class ItemServiceImplTest {
         permission.setRole(PermissionRole.OWNER);
 
         when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
-        when(itemPermissionRepository.findByItemAndUser(item, currentUser)).thenReturn(
+        when(itemPermissionRepository.findByItemIdAndUserId(item.getId(),
+                currentUser.getId())).thenReturn(
                 Optional.of(permission));
 
         ItemUpdateRequest request = new ItemUpdateRequest("new title", "new content", 1);
@@ -101,7 +106,8 @@ public class ItemServiceImplTest {
         permission.setRole(PermissionRole.EDITOR);
 
         when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
-        when(itemPermissionRepository.findByItemAndUser(item, currentUser)).thenReturn(
+        when(itemPermissionRepository.findByItemIdAndUserId(item.getId(),
+                currentUser.getId())).thenReturn(
                 Optional.of(permission));
 
         ItemUpdateRequest request = new ItemUpdateRequest("new title", "new content", 1);
@@ -117,9 +123,11 @@ public class ItemServiceImplTest {
         permission.setUser(currentUser);
         permission.setRole(PermissionRole.VIEWER);
 
-        when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
-        when(itemPermissionRepository.findByItemAndUser(item, currentUser)).thenReturn(
+        when(itemPermissionRepository.findByItemIdAndUserId(item.getId(),
+                currentUser.getId())).thenReturn(
                 Optional.of(permission));
+
+        when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
 
         ItemUpdateRequest request = new ItemUpdateRequest("new title", "new content", 1);
 
@@ -129,9 +137,8 @@ public class ItemServiceImplTest {
 
     @Test
     void strangerCannotEditItem() {
-
-        when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
-        when(itemPermissionRepository.findByItemAndUser(item, currentUser)).thenReturn(
+        when(itemPermissionRepository.findByItemIdAndUserId(item.getId(),
+                currentUser.getId())).thenReturn(
                 Optional.empty());
 
         ItemUpdateRequest request = new ItemUpdateRequest("new title", "new content", 1);
@@ -144,13 +151,14 @@ public class ItemServiceImplTest {
     void updateItemThrowsVersionConflict() {
 
         ItemPermission permission = new ItemPermission();
-        permission.setItem(item);
-        permission.setUser(currentUser);
         permission.setRole(PermissionRole.EDITOR);
 
-        when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
-        when(itemPermissionRepository.findByItemAndUser(item, currentUser)).thenReturn(
+
+        when(itemPermissionRepository.findByItemIdAndUserId(item.getId(),
+                currentUser.getId())).thenReturn(
                 Optional.of(permission));
+
+        when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
 
         ItemUpdateRequest request = new ItemUpdateRequest("new title", "new content", 3);
 
@@ -162,61 +170,67 @@ public class ItemServiceImplTest {
 
     @Test
     void createsNewPermissionIfNotExist() {
-
-        when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
-
         ItemPermission ownerPerm = new ItemPermission();
         ownerPerm.setRole(PermissionRole.OWNER);
-        when(itemPermissionRepository.findByItemAndUser(item, currentUser)).thenReturn(
+
+        when(itemPermissionRepository.findByItemIdAndUserId(item.getId(),
+                currentUser.getId())).thenReturn(
                 Optional.of(ownerPerm));
 
         User target = new User();
         target.setId(UUID.randomUUID());
         target.setLogin("target_user");
+
         when(userRepository.findById(target.getId())).thenReturn(Optional.of(target));
+        when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
 
         when(itemPermissionRepository.findByItemAndUser(item, target)).thenReturn(Optional.empty());
 
         ShareRequest request = new ShareRequest(target.getId(), "EDITOR");
 
         assertDoesNotThrow(() -> itemService.shareItem(item.getId(), request));
+        verify(itemPermissionRepository, times(1)).save(any(ItemPermission.class));
     }
 
     @Test
     void updatesExistingPermissionRole() {
-
-        when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
-
         ItemPermission ownerPerm = new ItemPermission();
         ownerPerm.setRole(PermissionRole.OWNER);
-        when(itemPermissionRepository.findByItemAndUser(item, currentUser)).thenReturn(
+        when(itemPermissionRepository.findByItemIdAndUserId(item.getId(),
+                currentUser.getId())).thenReturn(
                 Optional.of(ownerPerm));
 
         User target = new User();
         target.setId(UUID.randomUUID());
         target.setLogin("target_user");
-        when(userRepository.findById(target.getId())).thenReturn(Optional.of(target));
 
         ItemPermission existingPerm = new ItemPermission();
+        existingPerm.setUser(target);
+        existingPerm.setItem(item);
         existingPerm.setRole(PermissionRole.VIEWER);
+
+
+        when(userRepository.findById(target.getId())).thenReturn(Optional.of(target));
+        when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+
         when(itemPermissionRepository.findByItemAndUser(item, target)).thenReturn(
                 Optional.of(existingPerm));
 
         ShareRequest request = new ShareRequest(target.getId(), "EDITOR");
 
-        itemService.shareItem(item.getId(), request);
+        ShareResponse response = itemService.shareItem(item.getId(), request);
 
-        assertEquals(PermissionRole.EDITOR, existingPerm.getRole());
+        assertEquals("EDITOR", response.role());
+        assertFalse(response.isNew());
+        verify(itemPermissionRepository, times(1)).save(existingPerm);
     }
 
     @Test
     void cannotShareItemWithYourself() {
-
-        when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
-
         ItemPermission ownerPerm = new ItemPermission();
         ownerPerm.setRole(PermissionRole.OWNER);
-        when(itemPermissionRepository.findByItemAndUser(item, currentUser)).thenReturn(
+        when(itemPermissionRepository.findByItemIdAndUserId(item.getId(),
+                currentUser.getId())).thenReturn(
                 Optional.of(ownerPerm));
 
         when(userRepository.findById(currentUser.getId())).thenReturn(Optional.of(currentUser));
@@ -229,11 +243,10 @@ public class ItemServiceImplTest {
 
     @Test
     void cannotShareOwnerRole() {
-        when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
-
         ItemPermission ownerPerm = new ItemPermission();
         ownerPerm.setRole(PermissionRole.OWNER);
-        when(itemPermissionRepository.findByItemAndUser(item, currentUser)).thenReturn(
+        when(itemPermissionRepository.findByItemIdAndUserId(item.getId(),
+                currentUser.getId())).thenReturn(
                 Optional.of(ownerPerm));
 
         User target = new User();
@@ -243,18 +256,16 @@ public class ItemServiceImplTest {
 
         ShareRequest request = new ShareRequest(target.getId(), "OWNER");
 
-        assertThrows(ResponseStatusException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> itemService.shareItem(item.getId(), request));
     }
 
     @Test
     void cannotShareWithNonExistingUser() {
-
-        when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
-
         ItemPermission ownerPerm = new ItemPermission();
         ownerPerm.setRole(PermissionRole.OWNER);
-        when(itemPermissionRepository.findByItemAndUser(item, currentUser)).thenReturn(
+        when(itemPermissionRepository.findByItemIdAndUserId(item.getId(),
+                currentUser.getId())).thenReturn(
                 Optional.of(ownerPerm));
 
         UUID nonExistingUserId = UUID.randomUUID();
@@ -262,14 +273,19 @@ public class ItemServiceImplTest {
 
         ShareRequest request = new ShareRequest(nonExistingUserId, "EDITOR");
 
-        assertThrows(RuntimeException.class, () -> itemService.shareItem(item.getId(), request));
+        assertThrows(ResourceNotFoundException.class,
+                () -> itemService.shareItem(item.getId(), request));
     }
 
     @Test
     void cannotShareDeletedItem() {
         item.setDeleted(true);
 
-        when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+        ItemPermission itemPermission = new ItemPermission();
+        itemPermission.setRole(PermissionRole.OWNER);
+
+        when(itemPermissionRepository.findByItemIdAndUserId(item.getId(), currentUser.getId()))
+                .thenReturn(Optional.of(itemPermission));
 
         ShareRequest request = new ShareRequest(UUID.randomUUID(), "EDITOR");
 

@@ -1,7 +1,9 @@
 package com.marika.notesservice.integration;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
@@ -16,11 +18,12 @@ import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest
-@AutoConfigureMockMvc(addFilters = false)
+@AutoConfigureMockMvc
 public class OptimisticLockingIntegrationTest extends BaseIntegrationTest {
 
     @Autowired
@@ -35,6 +38,7 @@ public class OptimisticLockingIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(username = "test-user")
     void shouldReturnConflictWhenVersionIsOutdated() throws Exception {
         String createJson = """
                 {
@@ -45,6 +49,7 @@ public class OptimisticLockingIntegrationTest extends BaseIntegrationTest {
 
         MvcResult mvcResult = mockMvc.perform(
                         post("/items")
+                                .with(user("test-user"))
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(createJson))
                 .andExpect(status().isCreated())
@@ -78,5 +83,45 @@ public class OptimisticLockingIntegrationTest extends BaseIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(secondUpdate))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void shouldHandleOptimisticLockingOnConcurrentUpdates() throws Exception {
+        String createJson = """
+                {
+                    "title" : "First title",
+                    "content" : "First content"
+                }
+                """;
+
+        MvcResult mvcResult = mockMvc.perform(
+                        post("/items")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(createJson))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String response = mvcResult.getResponse().getContentAsString();
+        UUID itemID = UUID.fromString(JsonPath.read(response, "$.id"));
+
+        String update = """
+                {
+                    "title" : "Updated Title",
+                    "content" : "Updated Content",
+                    "version" : 0
+                }
+                """;
+
+        mockMvc.perform(patch("/items/" + itemID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(update))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/items/" + itemID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(update))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.currentVersion").value(1))
+                .andExpect(jsonPath("$.message").exists());
     }
 }
