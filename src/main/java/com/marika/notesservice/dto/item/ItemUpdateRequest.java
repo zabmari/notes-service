@@ -5,7 +5,7 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 public record ItemUpdateRequest(
-        @Size(min = 1, max = 200)
+        @Size(min = 1, max = 255)
         String title,
 
         @Size(max = 10000)

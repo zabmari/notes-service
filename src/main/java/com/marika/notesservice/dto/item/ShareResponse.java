@@ -6,5 +6,6 @@ import java.util.UUID;
 public record ShareResponse(UUID itemId,
                             UUID userId,
                             String role,
-                            Instant grantedAt) {
+                            Instant grantedAt,
+                            @com.fasterxml.jackson.annotation.JsonIgnore boolean isNew) {
 }
