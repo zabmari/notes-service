@@ -158,14 +158,17 @@
                     </dependency>
                 </dependencies>
                 <configuration>
+                    <sourceDirectories>
+                        <sourceDirectory>${project.build.sourceDirectory}</sourceDirectory>
+                    </sourceDirectories>
                     <configLocation>checkstyle.xml</configLocation>
                     <consoleOutput>true</consoleOutput>
                     <failsOnError>true</failsOnError>
                 </configuration>
                 <executions>
                     <execution>
-                        <id>validate</id>
-                        <phase>validate</phase>
+                        <id>verify</id>
+                        <phase>verify</phase>
                         <goals>
                             <goal>check</goal>
                         </goals>
