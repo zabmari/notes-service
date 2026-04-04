@@ -63,10 +63,14 @@ public class ItemController {
     }
 
     @PostMapping("/{id}/share")
-    @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<ShareResponse> share(@PathVariable UUID id,
                                                @Valid @RequestBody ShareRequest request) {
-        return itemService.shareItem(id, request);
+        ShareResponse response = itemService.shareItem(id, request);
+
+        if (response.isNew()) {
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        }
+        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{id}/share/{userId}")

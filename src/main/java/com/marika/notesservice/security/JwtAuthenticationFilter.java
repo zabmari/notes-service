@@ -17,20 +17,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private static final String[] PUBLIC_URLS = {
-            "/register",
-            "/login",
-            "/swagger-ui",
-            "/swagger-ui/",
-            "/swagger-ui.html",
-            "/v3/api-docs",
-            "/v3/api-docs/",
-            "/swagger-resources",
-            "/swagger-resources/",
-            "/webjars",
-            "/webjars/"
-    };
-
     private final JwtService jwtService;
     private final CustomUserDetailsService customUserDetailsService;
 
@@ -39,19 +25,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        String path = request.getRequestURI();
-
-        for (String publicUrl : PUBLIC_URLS) {
-            if (path.startsWith(publicUrl)) {
-                filterChain.doFilter(request, response);
-                return;
-            }
-        }
-
         String token = getToken(request);
 
         if (token == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            filterChain.doFilter(request, response);
             return;
         }
 

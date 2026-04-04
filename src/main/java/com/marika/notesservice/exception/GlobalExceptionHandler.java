@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -18,10 +19,10 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(VersionConflictException.class)
-    @ResponseStatus(HttpStatus.CONFLICT)
-    public Map<String, Object> handleVersionConflict(VersionConflictException ex) {
-        return Map.of("currentVersion", ex.getCurrentVersion());
+    @ExceptionHandler(AccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public Map<String, Object> handleAccessDenied(AccessDeniedException ex) {
+        return Map.of("message", ex.getMessage());
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
@@ -66,19 +67,23 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(EntityNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public Map<String, Object> handleEntityNotFound(EntityNotFoundException ex) {
-        return Map.of("message", ex.getMessage());
+        return Map.of("message", "Item not found");
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Map<String, Object> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
-        return Map.of("message", "Invalid UUID format");
+        String requiredType = (ex.getRequiredType() != null) ? ex.getRequiredType().getTypeName() :
+                "required type";
+        String message = String.format("Invalid value for parameter '%s'. Expected type: %s",
+                ex.getName(), requiredType);
+        return Map.of("message", message);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Map<String, Object> handleInvalidJson(HttpMessageNotReadableException ex) {
-        return Map.of("message", "Invalid UUID format in request body");
+        return Map.of("message", "Malformed JSON request or invalid data format");
     }
 
     @ExceptionHandler(SelfShareException.class)
@@ -87,10 +92,22 @@ public class GlobalExceptionHandler {
         return Map.of("message", ex.getMessage());
     }
 
-    @ExceptionHandler(OptimisticLockException.class)
-    public ResponseEntity<String> handleOptimisticLockException(OptimisticLockException ex) {
-        return ResponseEntity
-                .status(HttpStatus.CONFLICT)
-                .body("Version conflict: the item was modified by another user");
+    @ExceptionHandler({VersionConflictException.class,
+            OptimisticLockException.class,
+            org.springframework.dao.OptimisticLockingFailureException.class})
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public Map<String, Object> handleConflict(Exception ex) {
+        Object version = "unknown";
+        if (ex instanceof VersionConflictException vce) {
+            version = vce.getCurrentVersion();
+        }
+        return Map.of("message", "Version conflict: the item was modified by another user",
+                "currentVersion", version);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, Object> handleIllegalArgument(IllegalArgumentException ex) {
+        return Map.of("message", ex.getMessage());
     }
 }

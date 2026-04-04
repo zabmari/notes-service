@@ -49,16 +49,21 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String clientIp = getClientIp(request);
         Bucket bucket = buckets.computeIfAbsent(clientIp, this::newBucket);
 
-        if (bucket.tryConsume(1)) {
+        io.github.bucket4j.ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
+
+        if (probe.isConsumed()) {
             filterChain.doFilter(request, response);
         } else {
-            long waitForRefillSeconds = bucket.getAvailableTokens() == 0
-                    ? durationSeconds
-                    : 1;
+            long nanosToWait = probe.getNanosToWaitForRefill();
+            long secondsToWait = (long) Math.ceil(nanosToWait / 1_000_000_000.0);
+
+            long finalRetryAfter = Math.max(secondsToWait, 1);
 
             response.setStatus(TOO_MANY_REQUESTS.value());
-            response.setHeader("Retry-After", String.valueOf(waitForRefillSeconds));
-            response.getWriter().write("Too many login attempts. Try again later.");
+            response.setHeader("Retry-After", String.valueOf(finalRetryAfter));
+            response.setContentType("application/json");
+            response.getWriter().write("{\"message\" : \"Too many login attempts. Try again in "
+                    + finalRetryAfter + " seconds.\"}");
         }
     }
 
