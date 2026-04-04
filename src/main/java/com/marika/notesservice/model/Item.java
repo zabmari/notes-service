@@ -2,6 +2,7 @@ package com.marika.notesservice.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -17,11 +18,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.envers.Audited;
 import org.hibernate.envers.RelationTargetAuditMode;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(name = "items")
 @Audited
 @Getter
@@ -29,6 +34,8 @@ import org.hibernate.envers.RelationTargetAuditMode;
 @NoArgsConstructor
 @AllArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 @Builder
+@SQLDelete(sql = "UPDATE items SET deleted = true WHERE id = ?")
+@SQLRestriction("deleted = false")
 public class Item {
     @Id
     @GeneratedValue
@@ -60,5 +67,4 @@ public class Item {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
-
 }

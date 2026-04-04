@@ -21,11 +21,15 @@ public interface ItemMapper {
     Item toEntity(CreateItemRequest createItemRequest, User user);
 
     @Mapping(target = "ownerId", source = "owner.id")
+    @Mapping(target = "createdAt", source = "createdAt")
+    @Mapping(target = "updatedAt", source = "updatedAt")
     ItemResponse toResponse(Item item);
 
     @Mapping(target = "id", source = "item.id")
-    @Mapping(target = "ownerId", source = "item.owner.id")
+    @Mapping(target = "ownerId",
+            expression = "java(item.getOwner() != null ? item.getOwner().getId() : null)")
     @Mapping(target = "myRole", source = "itemPermission.role")
+    @Mapping(target = "updatedAt", source = "item.updatedAt")
     ItemListResponse toListResponse(Item item, ItemPermission itemPermission);
 
     ItemUpdateResponse toUpdateResponse(Item item);

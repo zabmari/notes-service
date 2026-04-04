@@ -24,20 +24,16 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.Instant;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.envers.AuditReader;
 import org.hibernate.envers.AuditReaderFactory;
 import org.hibernate.envers.RevisionType;
 import org.hibernate.envers.query.AuditEntity;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @RequiredArgsConstructor
 @Service
@@ -70,12 +66,6 @@ public class ItemServiceImpl implements ItemService {
                 .orElseThrow(() -> new AccessDeniedException("No permission"));
     }
 
-    private void asserNotDeleted(Item item) {
-        if (item.getDeleted()) {
-            throw new ResourceNotFoundException("Item not found");
-        }
-    }
-
     private void assertOwner(ItemPermission permission) {
         if (permission.getRole() != PermissionRole.OWNER) {
             throw new AccessDeniedException("Only owner can manage permissions");
@@ -86,25 +76,28 @@ public class ItemServiceImpl implements ItemService {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
-    
+
+    private ItemPermission validateAccess(UUID itemId, User user) {
+        return itemPermissionRepository.findByItemIdAndUserId(itemId, user.getId())
+                .orElseThrow(() -> new AccessDeniedException(
+                        "Forbidden: You don't have access to this item"));
+    }
+
     @Transactional
     public ItemResponse createItem(CreateItemRequest createItemRequest) {
         User currentUser = getCurrentUser();
 
         Item item = itemMapper.toEntity(createItemRequest, currentUser);
-
         item.setOwner(currentUser);
         item.setDeleted(false);
+        item = itemRepository.saveAndFlush(item);
 
-        item = itemRepository.save(item);
-        entityManager.flush();
         ItemPermission itemPermission = new ItemPermission();
-        itemPermission.setItem(itemRepository.getReferenceById(item.getId()));
+        itemPermission.setItem(item);
         itemPermission.setUser(currentUser);
         itemPermission.setRole(PermissionRole.OWNER);
 
-        itemPermissionRepository.save(itemPermission);
-
+        itemPermissionRepository.saveAndFlush(itemPermission);
         return itemMapper.toResponse(item);
     }
 
@@ -112,26 +105,17 @@ public class ItemServiceImpl implements ItemService {
     public List<ItemListResponse> getItemsForCurrentUser() {
         User currentUser = getCurrentUser();
 
-        List<ItemPermission> permissions = itemPermissionRepository.findByUser(currentUser);
-
-        return permissions.stream()
-                .map(permission -> {
-                    Item item = permission.getItem();
-                    return item.getDeleted() ? null : itemMapper.toListResponse(item, permission);
-                })
-                .filter(Objects::nonNull)
+        return itemPermissionRepository.findByUser(currentUser).stream()
+                .map(permission -> itemMapper.toListResponse(permission.getItem(), permission))
                 .toList();
     }
 
     @Transactional
     public ItemUpdateResponse updateItem(UUID id, ItemUpdateRequest updateItemRequest) {
         User currentUser = getCurrentUser();
-
+        ItemPermission itemPermission = validateAccess(id, currentUser);
         Item item = loadItem(id);
 
-        ItemPermission itemPermission = getPermissionOrThrow(item, currentUser);
-
-        asserNotDeleted(item);
         if (itemPermission.getRole() == PermissionRole.VIEWER) {
             throw new AccessDeniedException("No permission to edit this item");
         }
@@ -147,37 +131,34 @@ public class ItemServiceImpl implements ItemService {
             item.setContent(updateItemRequest.content());
         }
 
-        item.setUpdatedAt(Instant.now());
+        Item updatedItem = itemRepository.saveAndFlush(item);
 
-        itemRepository.save(item);
-
-        return itemMapper.toUpdateResponse(item);
+        return itemMapper.toUpdateResponse(updatedItem);
     }
 
     @Transactional
     public void softDeleteItem(UUID id) {
         User currentUser = getCurrentUser();
-
+        ItemPermission itemPermission = validateAccess(id, currentUser);
         Item item = loadItem(id);
-
-        ItemPermission itemPermission = getPermissionOrThrow(item, currentUser);
-
-        asserNotDeleted(item);
-
-        if (itemPermission.getRole() != PermissionRole.OWNER) {
-            throw new AccessDeniedException("Only owner can delete this item");
-        }
+        assertOwner(itemPermission);
 
         item.setDeleted(true);
-        item.setUpdatedAt(Instant.now());
-        itemRepository.save(item);
+        itemRepository.saveAndFlush(item);
+        itemPermissionRepository.deleteByItem(item);
     }
 
     @Transactional(readOnly = true)
     public List<ItemHistoryResponse> getItemHistory(UUID id) {
         User currentUser = getCurrentUser();
         Item item = loadItem(id);
-        getPermissionOrThrow(item, currentUser);
+
+        if (item.getDeleted()) {
+            throw new ResourceNotFoundException("Item not found");
+        }
+
+        validateAccess(id, currentUser);
+
         AuditReader auditReader = AuditReaderFactory.get(entityManager);
 
         List<Object[]> revisions = auditReader.createQuery()
@@ -204,16 +185,11 @@ public class ItemServiceImpl implements ItemService {
     }
 
     @Transactional
-    public ResponseEntity<ShareResponse> shareItem(UUID id, ShareRequest shareRequest) {
-
+    public ShareResponse shareItem(UUID id, ShareRequest shareRequest) {
         User currentUser = getCurrentUser();
+        ItemPermission itemPermission = validateAccess(id, currentUser);
 
-        Item item = loadItem(id);
-        asserNotDeleted(item);
-
-        ItemPermission itemPermission = getPermissionOrThrow(item, currentUser);
         assertOwner(itemPermission);
-
         User targetUser = loadUser(shareRequest.userId());
 
         if (targetUser.getId().equals(currentUser.getId())) {
@@ -224,12 +200,14 @@ public class ItemServiceImpl implements ItemService {
         try {
             role = PermissionRole.valueOf(shareRequest.role());
         } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid role");
+            throw new IllegalArgumentException("Invalid role: " + shareRequest.role());
         }
 
         if (role == PermissionRole.OWNER) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot assign OWNER role");
+            throw new IllegalArgumentException("Cannot assign OWNER role");
         }
+
+        Item item = loadItem(id);
 
         ItemPermission targetPermission = itemPermissionRepository
                 .findByItemAndUser(item, targetUser)
@@ -247,28 +225,22 @@ public class ItemServiceImpl implements ItemService {
         targetPermission.setRole(role);
         itemPermissionRepository.save(targetPermission);
 
-        ShareResponse shareResponse = new ShareResponse(
+        return new ShareResponse(
                 item.getId(),
                 targetUser.getId(),
                 role.name(),
-                Instant.now()
+                Instant.now(),
+                isNew
         );
-
-        return isNew
-                ? ResponseEntity.status(201).body(shareResponse)
-                : ResponseEntity.ok(shareResponse);
     }
 
     @Transactional
     public void revokeShare(UUID itemId, UUID targetUserId) {
         User currentUser = getCurrentUser();
-
+        ItemPermission itemPermission = validateAccess(itemId, currentUser);
         Item item = loadItem(itemId);
-        asserNotDeleted(item);
 
-        ItemPermission itemPermission = getPermissionOrThrow(item, currentUser);
         assertOwner(itemPermission);
-
         User targetUser = loadUser(targetUserId);
 
         ItemPermission targetPermission = itemPermissionRepository
