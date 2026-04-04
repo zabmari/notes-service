@@ -8,7 +8,7 @@ track history, and enforce resource-level access control.
 * **Java 21 & Virtual Threads**: Optimized for high concurrency using `spring.threads.virtual.enabled=true`. This allows
   the application to handle a large number of concurrent requests with minimal overhead.
 * **Resource-Level Authorization (ABAC)**: Implemented custom security checks to verify if a logged-in user is an
-* **OWNER**, **EDITOR**, or **VIEWER** for a specific note ID before granting access.
+  **OWNER**, **EDITOR**, or **VIEWER** for a specific note ID before granting access.
 * **Soft Delete & Data Integrity**: Deletions are logical (deleted = true). The application uses Hibernate
   @SQLRestriction
   to automatically filter out deleted items from all queries and history views.
